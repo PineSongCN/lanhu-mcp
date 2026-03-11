@@ -51,10 +51,26 @@ echo ""
 # 创建 .env 文件
 echo "📝 创建配置文件..."
 
-# 你的蓝湖 Cookie (已从用户输入中获取)
-LANHU_COOKIE='your_lanhu_cookie_here'
+# 定义创建 .env 文件的函数（替代 goto 逻辑）
+create_env_file() {
+    # 你的蓝湖 Cookie (优先读取环境变量，无则提示用户输入)
+    if [ -n "$LANHU_COOKIE" ]; then
+        # 环境变量已存在，直接使用
+        echo -e "${YELLOW}ℹ️  从环境变量读取到蓝湖 Cookie${NC}"
+    else
+        # 环境变量不存在，提示用户输入
+        echo -e "${YELLOW}ℹ️  未检测到 LANHU_COOKIE 环境变量，请手动输入${NC}"
+        read -p "请输入你的蓝湖 Cookie: " LANHU_COOKIE
+        
+        # 校验输入是否为空，确保用户输入有效内容
+        while [ -z "$LANHU_COOKIE" ]; do
+            echo -e "${RED}❌ Cookie 不能为空！${NC}"
+            read -p "请重新输入你的蓝湖 Cookie: " LANHU_COOKIE
+        done
+        echo -e "${GREEN}✅ Cookie 输入完成${NC}"
+    fi
 
-cat > .env << EOF
+    cat > .env << EOF
 # 蓝湖 MCP 服务器配置
 # ⚠️ 注意：此文件包含敏感信息，不要提交到 git！
 
@@ -110,10 +126,46 @@ VIEWPORT_HEIGHT=1080
 DEBUG="false"
 EOF
 
-echo -e "${GREEN}✅ 配置文件创建成功: .env${NC}"
-chmod 600 .env
-echo -e "${GREEN}✅ 已设置安全权限 (600)${NC}"
-echo ""
+    echo -e "${GREEN}✅ 配置文件创建成功: .env${NC}"
+    chmod 600 .env
+    echo -e "${GREEN}✅ 已设置安全权限 (600)${NC}"
+    echo ""
+}
+
+# 检查 .env 文件是否已存在
+if [ -f ".env" ]; then
+    echo -e "${YELLOW}ℹ️  检测到已存在 .env 配置文件${NC}"
+    read -p "是否重新创建并覆盖已有文件？(y/N) " OVERWRITE_ENV
+    
+    # 处理用户输入，默认不覆盖
+    if [[ ! "$OVERWRITE_ENV" =~ ^[Yy]$ ]]; then
+        echo -e "${GREEN}✅ 跳过 .env 文件创建，使用已有配置${NC}"
+        # 从已有 .env 文件中读取 LANHU_COOKIE
+        if grep -q "^LANHU_COOKIE=" .env; then
+            LANHU_COOKIE=$(grep "^LANHU_COOKIE=" .env | cut -d'=' -f2- | sed 's/^"//;s/"$//')
+            echo -e "${YELLOW}ℹ️  从已有 .env 文件读取到蓝湖 Cookie${NC}"
+        else
+            echo -e "${RED}❌ 已有 .env 文件中未找到 LANHU_COOKIE 配置${NC}"
+            read -p "请补充输入你的蓝湖 Cookie: " LANHU_COOKIE
+            # 校验输入是否为空
+            while [ -z "$LANHU_COOKIE" ]; do
+                echo -e "${RED}❌ Cookie 不能为空！${NC}"
+                read -p "请重新输入你的蓝湖 Cookie: " LANHU_COOKIE
+            done
+            # 将补充的 Cookie 写入已有 .env 文件（兼容 macOS/Linux）
+            sed -i.bak "s/^LANHU_COOKIE=.*/LANHU_COOKIE=\"$LANHU_COOKIE\"/" .env && rm -f .env.bak
+            echo -e "${GREEN}✅ 已更新 .env 文件中的 Cookie 配置${NC}"
+        fi
+        echo ""
+    else
+        echo -e "${YELLOW}ℹ️  用户确认覆盖，重新创建 .env 文件${NC}"
+        # 调用函数创建文件（替代 goto）
+        create_env_file
+    fi
+else
+    # 文件不存在，直接调用函数创建
+    create_env_file
+fi
 
 # 创建数据目录
 echo "📁 创建数据目录..."

@@ -43,9 +43,68 @@ if not errorlevel 1 (
 echo ✅ Docker 环境检查通过
 echo.
 
-REM 创建 .env 文件
-echo 📝 创建配置文件...
+REM 初始化变量
+set "LANHU_COOKIE="
+set "OVERWRITE_ENV=N"
+set "COOKIE_FROM_ENV=false"
 
+REM 检查是否存在 .env 文件
+if exist ".env" (
+    echo 📄 检测到已存在 .env 配置文件
+    set /p "OVERWRITE_ENV=是否重新创建并覆盖已有文件？(y/N) "
+    REM 处理用户输入，默认 N
+    if /i not "%OVERWRITE_ENV%"=="Y" (
+        echo ✅ 跳过 .env 文件创建，使用已有配置
+        REM 从已有 .env 读取 LANHU_COOKIE
+        for /f "tokens=1,* delims==" %%a in ('type .env ^| findstr /b "LANHU_COOKIE="') do (
+            set "EXISTING_COOKIE=%%b"
+            REM 去除引号
+            set "EXISTING_COOKIE=!EXISTING_COOKIE:"=!"
+        )
+        if defined EXISTING_COOKIE (
+            set "LANHU_COOKIE=!EXISTING_COOKIE!"
+            echo ℹ️  从已有 .env 文件读取到蓝湖 Cookie
+        ) else (
+            echo ❌ 已有 .env 文件中未找到 LANHU_COOKIE 配置
+            goto :input_cookie
+        )
+        echo.
+    ) else (
+        echo ℹ️  用户确认覆盖，准备重新创建 .env 文件
+        goto :check_env_var
+    )
+) else (
+    REM 无 .env 文件，检查环境变量
+    goto :check_env_var
+)
+
+REM 检查 LANHU_COOKIE 环境变量
+:check_env_var
+if defined LANHU_COOKIE (
+    set "COOKIE_FROM_ENV=true"
+    echo ℹ️  从环境变量读取到蓝湖 Cookie
+    goto :create_env_file
+) else (
+    echo ℹ️  未检测到 LANHU_COOKIE 环境变量，请手动输入
+    goto :input_cookie
+)
+
+REM 提示用户输入 Cookie 并校验非空
+:input_cookie
+set "LANHU_COOKIE="
+set /p "LANHU_COOKIE=请输入你的蓝湖 Cookie: "
+REM 校验输入是否为空
+if not defined LANHU_COOKIE (
+    echo ❌ Cookie 不能为空！
+    goto :input_cookie
+)
+echo ✅ Cookie 输入完成
+echo.
+goto :create_env_file
+
+REM 创建 .env 文件（带用户输入/环境变量的 Cookie）
+:create_env_file
+echo 📝 创建配置文件...
 (
 echo # 蓝湖 MCP 服务器配置
 echo # ⚠️ 注意：此文件包含敏感信息，不要提交到 git！
@@ -55,7 +114,7 @@ echo # 必需配置
 echo # ==============================================
 echo.
 echo # 蓝湖 Cookie（必需）
-echo LANHU_COOKIE="your_lanhu_cookie_here"
+echo LANHU_COOKIE="%LANHU_COOKIE%"
 echo.
 echo # ==============================================
 echo # 服务器配置（可选）
